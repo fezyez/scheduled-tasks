@@ -1,38 +1,29 @@
-# To run and test the code you need to update 4 places:
-# 1. Change MY_EMAIL/MY_PASSWORD to your own details.
-# 2. Go to your email provider and make it allow less secure apps.
-# 3. Update the SMTP ADDRESS to match your email provider.
-# 4. Update birthdays.csv to contain today's month and day.
-# See the solution video in the 100 Days of Python Course for explainations.
-
-
-from datetime import datetime
-import pandas
-import random
-import smtplib
+import requests
+from twilio.rest import Client
 import os
 
-# import os and use it to get the Github repository secrets
-MY_EMAIL = os.environ.get("MY_EMAIL")
-MY_PASSWORD = os.environ.get("MY_PASSWORD")
+account_sid = os.environ["TWILIO_ACCOUNT_SID"]
+auth_token = os.environ["TWILIO_AUTH_TOKEN"]
+client = Client(account_sid, auth_token)
 
-today = datetime.now()
-today_tuple = (today.month, today.day)
+parameters = {
+    "lat": os.environ["LAT"],
+    "lon": os.environ["LON"],
+    "appid": os.environ["OMW_API_KEY"],
+    'cnt': 4,
+}
 
-data = pandas.read_csv("birthdays.csv")
-birthdays_dict = {(data_row["month"], data_row["day"])                  : data_row for (index, data_row) in data.iterrows()}
-if today_tuple in birthdays_dict:
-    birthday_person = birthdays_dict[today_tuple]
-    file_path = f"letter_templates/letter_{random.randint(1, 3)}.txt"
-    with open(file_path) as letter_file:
-        contents = letter_file.read()
-        contents = contents.replace("[NAME]", birthday_person["name"])
+response = requests.get(url='https://api.openweathermap.org/data/2.5/forecast', params=parameters)
+response.raise_for_status()
+data = response.json()
 
-    with smtplib.SMTP("YOUR EMAIL PROVIDER SMTP SERVER ADDRESS") as connection:
-        connection.starttls()
-        connection.login(MY_EMAIL, MY_PASSWORD)
-        connection.sendmail(
-            from_addr=MY_EMAIL,
-            to_addrs=birthday_person["email"],
-            msg=f"Subject:Happy Birthday!\n\n{contents}"
+for hour_data in data['list']:
+    if hour_data['weather'][0]['id'] < 700:
+        message = client.messages.create(
+            body='Będzie padało w ciągu następnych 12 godzin!!!',
+            from_=os.environ["TWILIO_NUM"],
+            to=os.environ["MY_NUMBER"],
         )
+        print(message.status)
+        break
+print('Kod wykonany poprawnie.')
